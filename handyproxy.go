@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -39,6 +40,7 @@ func ntohs(s uint16) uint16 {
 var localPort = flag.Int("local-port", 8443, "local port to listen on for REDIRECTed traffic")
 var upstreamProxy = flag.String("upstream-proxy", "localhost:3128", "upstream proxy to CONNECT to")
 var versionFlag = flag.Bool("version", false, "show version information")
+var dialTimeout = flag.Duration("dial-timeout", 3*time.Minute, "timeout for connections to the proxy")
 
 func main() {
 
@@ -73,7 +75,7 @@ func setupConnectUpstream(origin string) (c *net.TCPConn, err error) {
 		}
 	}()
 
-	pipe0, err := net.Dial("tcp4", *upstreamProxy)
+	pipe0, err := net.DialTimeout("tcp4", *upstreamProxy, *dialTimeout)
 	if err != nil {
 		return
 	}
