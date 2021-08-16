@@ -124,9 +124,14 @@ func handleConnection(c *net.TCPConn) {
 
 func handleTunnel(in, out *net.TCPConn) {
 	var wg sync.WaitGroup
+	copier := func(dst, src *net.TCPConn) {
+		defer wg.Done()
+		io.Copy(dst, src)
+		dst.CloseWrite()
+	}
 	wg.Add(2)
-	go func() { defer wg.Done(); io.Copy(in, out) }()
-	go func() { defer wg.Done(); io.Copy(out, in) }()
+	go copier(in, out)
+	go copier(out, in)
 	wg.Wait()
 	in.Close()
 	out.Close()
