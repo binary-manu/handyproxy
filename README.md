@@ -119,10 +119,11 @@ some of them on the same machine.
 
 Simply run HandyProxy on a machine routing traffic from other hosts,
 giving it the local port to listen on and the upstream proxy (IP address
-or domain name).
+or domain name). It is also possible to specify a timeout to wait for
+when connecting to the proxy (otherwise a reasonable default is used):
 
 ```sh
-$ handyproxy  -local-port 8043 -upstream-proxy proxy.local
+$ handyproxy  -local-port 8043 -upstream-proxy proxy.local -dial-timeout 25s
 ```
 
 Note that HandyProxy listens on all interfaces:
