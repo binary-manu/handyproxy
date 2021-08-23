@@ -18,6 +18,11 @@ import (
 	"unsafe"
 )
 
+/*
+#include <sys/socket.h>
+*/
+import "C"
+
 var version = "master"
 
 const _SO_ORIGINAL_DST = 80
@@ -143,15 +148,15 @@ func getOriginalDestination(c *net.TCPConn) (origin string, err error) {
 		return
 	}
 	defer file.Close()
-	fd := int(file.Fd())
+	fd := file.Fd()
 
 	var addr syscall.RawSockaddrInet4
-	len := uint32(unsafe.Sizeof(addr))
+	len := C.socklen_t(unsafe.Sizeof(addr))
 	err = getsockopt(fd, syscall.SOL_IP, _SO_ORIGINAL_DST, unsafe.Pointer(&addr), &len)
 	if err != nil {
 		return
 	}
-	origin = fmt.Sprintf("%s:%d", net.IP(addr.Addr[:]), ntohs(addr.Port))
+	origin = (&net.TCPAddr{IP: net.IP(addr.Addr[:]), Port: int(ntohs(addr.Port))}).String()
 	localAddr := c.LocalAddr().String()
 	if origin == localAddr {
 		err = fmt.Errorf("received non REDIRECTed traffic to %s from %s, discarding", localAddr, c.RemoteAddr().String())
@@ -160,9 +165,9 @@ func getOriginalDestination(c *net.TCPConn) (origin string, err error) {
 	return
 }
 
-func getsockopt(s int, level int, optname int, optval unsafe.Pointer, optlen *uint32) (err error) {
+func getsockopt(s uintptr, level uintptr, optname uintptr, optval unsafe.Pointer, optlen *C.socklen_t) (err error) {
 	_, _, e := syscall.Syscall6(
-		syscall.SYS_GETSOCKOPT, uintptr(s), uintptr(level), uintptr(optname),
+		syscall.SYS_GETSOCKOPT, s, level, optname,
 		uintptr(optval), uintptr(unsafe.Pointer(optlen)), 0)
 	if e != 0 {
 		return e
