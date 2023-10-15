@@ -1,0 +1,4 @@
+github.com/ginuerzh/tls-dissector v0.0.1 h1:yF6fIt78TO4CdjiLLn6R8r0XajQJE1Lbnuq6rP8mGW8=
+github.com/ginuerzh/tls-dissector v0.0.1/go.mod h1:u/kbBOqIOgJv39gywuUb3VwyzdZG5DKquOqfToKE6lk=
+github.com/go-gost/tls-dissector v0.0.1 h1:cySZTSa7o5aOg/bqZXVFzi3NMudsiLwkzArFoxjUWCY=
+github.com/go-gost/tls-dissector v0.0.1/go.mod h1:8CmRTbp7v4Ebd/lewu/Y/4dEJOP9ke6nwumyJ9WlOec=

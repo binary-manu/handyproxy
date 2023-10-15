@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/binary-manu/handyproxy/hostname"
 )
 
 var version = "master"
@@ -18,6 +20,8 @@ var localPort = flag.Int("local-port", 8443, "local port to listen on for REDIRE
 var upstreamProxy = flag.String("upstream-proxy", "localhost:3128", "upstream proxy to CONNECT to")
 var versionFlag = flag.Bool("version", false, "show version information")
 var dialTimeout = flag.Duration("dial-timeout", 3*time.Minute, "timeout for connections to the proxy")
+var sniffTimeOut = flag.Duration("sniff-timeout", 0, "maximum acceptable delay for hostname sniffing (0 -> disable)")
+var sniffMaxBytes = flag.Uint64("sniff-max-bytes", 16384, "maximum number of bytes used for hostname sniffing")
 
 func main() {
 
@@ -26,6 +30,10 @@ func main() {
 	fmt.Println("HandyProxy", version)
 	if *versionFlag {
 		return
+	}
+
+	if *sniffMaxBytes > ((1 << 63) - 1) {
+		log.Fatalln("-sniff-max-bytes value is too big")
 	}
 
 	ln, err := net.Listen("tcp4", fmt.Sprintf(":%d", *localPort))
@@ -84,17 +92,43 @@ func setupConnectUpstream(origin string) (c *net.TCPConn, err error) {
 }
 
 func handleConnection(c *net.TCPConn) {
+	defer c.Close()
+
 	origin, err := getOriginalDestination(c)
 	if err != nil {
-		c.Close()
 		log.Println(err)
 		return
 	}
+
+	var hostSniffer *hostname.HostNameSniffer
+	if *sniffTimeOut > 0 {
+		hostSniffer = hostname.NewSniffer(
+			hostname.WithMaxData(int64(*sniffMaxBytes)),
+			hostname.WithTimeout(*sniffTimeOut),
+			hostname.WithSnifferStrategy(hostname.HTTPSniffer()),
+			hostname.WithSnifferStrategy(hostname.TLSSniffer()),
+		)
+		hostName, err := hostSniffer.SniffHostName(c)
+		if err == nil {
+			origin = hostName
+			log.Printf("Extracted hostname for client connection %s: %s", c.RemoteAddr().String(), hostName)
+		} else {
+			log.Printf("Hostname extraction failed for client connection %s: %s", c.RemoteAddr().String(), err)
+		}
+	}
+
 	pipe, err := setupConnectUpstream(origin)
 	if err != nil {
-		c.Close()
 		log.Println(err)
 		return
+	}
+	defer pipe.Close()
+
+	if hostSniffer != nil {
+		_, err = hostSniffer.GetBufferedData().WriteTo(pipe)
+		if err != nil {
+			return
+		}
 	}
 	handleTunnel(c, pipe)
 }
@@ -110,6 +144,4 @@ func handleTunnel(in, out *net.TCPConn) {
 	go copier(in, out)
 	go copier(out, in)
 	wg.Wait()
-	in.Close()
-	out.Close()
 }
