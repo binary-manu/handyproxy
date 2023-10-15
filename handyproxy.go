@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -71,7 +70,7 @@ func setupConnectUpstream(origin string) (c *net.TCPConn, err error) {
 		return
 	}
 	defer connectRsp.Body.Close()
-	_, err = io.CopyN(ioutil.Discard, connectRsp.Body, connectRsp.ContentLength)
+	_, err = io.CopyN(io.Discard, connectRsp.Body, connectRsp.ContentLength)
 	if err != nil {
 		return
 	}
