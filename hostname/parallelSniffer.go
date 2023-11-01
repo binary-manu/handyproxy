@@ -20,6 +20,8 @@ func (sniffer *parallelSniffer) SniffHostName(c *net.TCPConn) (rHostName string,
 		panic("parallelSniffer instances cannot be reused")
 	}
 
+	nSniffers := len(sniffer.sniffers)
+
 	var reader io.Reader = c
 	readSync := make(chan struct{})
 	defer func() {
@@ -35,8 +37,8 @@ func (sniffer *parallelSniffer) SniffHostName(c *net.TCPConn) (rHostName string,
 	reader = io.TeeReader(reader, &sniffer.bufferedData)
 
 	// Each strategy gets its own reader so that they can run in parallel
-	readersForStrategies := make([]io.Reader, len(sniffer.sniffers))
-	writersForStrategies := make([]io.Writer, len(sniffer.sniffers))
+	readersForStrategies := make([]io.Reader, nSniffers)
+	writersForStrategies := make([]io.Writer, nSniffers)
 	defer func() {
 		for _, r := range readersForStrategies {
 			_ = r.(io.Closer).Close()
@@ -45,14 +47,12 @@ func (sniffer *parallelSniffer) SniffHostName(c *net.TCPConn) (rHostName string,
 			_ = w.(io.Closer).Close()
 		}
 	}()
-	hostNamesFound := make(chan string, len(sniffer.sniffers))
+	hostNamesFound := make(chan string, nSniffers)
 	for i, strategy := range sniffer.sniffers {
 		readersForStrategies[i], writersForStrategies[i] = io.Pipe()
 		go func(i int, strategy sniffStrategy) {
 			name, _ := strategy.SniffHostName(readersForStrategies[i])
-			if name != "" {
-				hostNamesFound <- name
-			}
+			hostNamesFound <- name
 			// Keep dumping data, otherwise the MultiWriter will stall
 			_, _ = io.Copy(io.Discard, readersForStrategies[i])
 		}(i, strategy)
@@ -68,14 +68,24 @@ func (sniffer *parallelSniffer) SniffHostName(c *net.TCPConn) (rHostName string,
 		_, _ = io.CopyN(forkData, reader, sniffer.maxData)
 	}()
 
-	select {
-	case hn := <-hostNamesFound:
-		// If this fails, the code will simply stall until the reading gorutine
-		// ends on its own
-		_ = c.SetReadDeadline(time.Now())
-		return hn, nil
-	case <-readSync:
-		return "", fmt.Errorf("all hostname sniffers failed")
+	for {
+		select {
+		case hn := <-hostNamesFound:
+			if hn != "" {
+				// If this fails, the code will simply stall until the reading goroutine
+				// ends on its own
+				_ = c.SetReadDeadline(time.Now())
+				return hn, nil
+			}
+			nSniffers--
+			if nSniffers <= 0 {
+				// Same as above
+				_ = c.SetReadDeadline(time.Now())
+				return "", fmt.Errorf("all hostname sniffers failed")
+			}
+		case <-readSync:
+			return "", fmt.Errorf("sniff deadline expired")
+		}
 	}
 
 }
