@@ -14,7 +14,7 @@ import (
 	"unsafe"
 )
 
-const _SO_ORIGINAL_DST = 80
+const soOriginalDst = 80
 
 var byteOrder binary.ByteOrder
 
@@ -40,8 +40,8 @@ func getOriginalDestination(c *net.TCPConn) (origin string, err error) {
 	fd := file.Fd()
 
 	var addr syscall.RawSockaddrInet4
-	len := C.socklen_t(unsafe.Sizeof(addr))
-	err = getsockopt(fd, syscall.SOL_IP, _SO_ORIGINAL_DST, unsafe.Pointer(&addr), &len)
+	addrLen := C.socklen_t(unsafe.Sizeof(addr))
+	err = getsockopt(fd, syscall.SOL_IP, soOriginalDst, unsafe.Pointer(&addr), &addrLen)
 	if err != nil {
 		return
 	}

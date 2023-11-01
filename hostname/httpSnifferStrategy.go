@@ -18,6 +18,6 @@ func httpHostNameSniffer(r io.Reader) (string, error) {
 	return "", fmt.Errorf("HTTP Host header is missing")
 }
 
-func HTTPSniffer() HostNameSniffStrategy {
-	return snifferFunction(httpHostNameSniffer)
+func NewHTTPSnifferStrategy() *SniffStrategy {
+	return &SniffStrategy{snifferStrategyFunction(httpHostNameSniffer)}
 }

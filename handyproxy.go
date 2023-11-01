@@ -16,51 +16,105 @@ import (
 
 var version = "master"
 
-var localPort = flag.Int("local-port", 8443, "local port to listen on for REDIRECTed traffic")
-var upstreamProxy = flag.String("upstream-proxy", "localhost:3128", "upstream proxy to CONNECT to")
-var versionFlag = flag.Bool("version", false, "show version information")
-var dialTimeout = flag.Duration("dial-timeout", 3*time.Minute, "timeout for connections to the proxy")
-var sniffTimeOut = flag.Duration("sniff-timeout", 0, "maximum acceptable delay for hostname sniffing (0 -> disable)")
-var sniffMaxBytes = flag.Uint64("sniff-max-bytes", 16384, "maximum number of bytes used for hostname sniffing")
+type options struct {
+	LocalPort     *int
+	UpstreamProxy *string
+	VersionFlag   *bool
+	DialTimeout   *time.Duration
+	SniffTimeout  *time.Duration
+	SniffMaxBytes *int64
+}
+
+type HostNameSnifferFactory struct {
+	hostNameSnifferFactory
+}
+
+type hostNameSnifferFactory interface {
+	NewHostNameSniffer() *hostname.Sniffer
+}
+
+type nullHostNameSnifferFactory struct{}
+
+func (factory *nullHostNameSnifferFactory) NewHostNameSniffer() *hostname.Sniffer {
+	return hostname.NewNullSniffer()
+}
+
+type parallelHostNameSnifferFactory struct {
+	opts *options
+}
+
+func (factory *parallelHostNameSnifferFactory) NewHostNameSniffer() *hostname.Sniffer {
+	return hostname.NewParallelSniffer(
+		hostname.WithParallelMaxData(*factory.opts.SniffMaxBytes),
+		hostname.WithParallelTimeout(*factory.opts.SniffTimeout),
+		hostname.WithParallelSnifferStrategy(hostname.NewHTTPSnifferStrategy()),
+		hostname.WithParallelSnifferStrategy(hostname.NewTLSSnifferStrategy()),
+	)
+}
+
+func newHostNameSnifferFactoryFromOptions(opts *options) *HostNameSnifferFactory {
+	if *opts.SniffTimeout < 0 {
+		return &HostNameSnifferFactory{&nullHostNameSnifferFactory{}}
+	} else {
+		return &HostNameSnifferFactory{&parallelHostNameSnifferFactory{opts}}
+	}
+}
+
+type connectionContext struct {
+	Opts            *options
+	C               *net.TCPConn
+	HostNameSniffer *hostname.Sniffer
+}
 
 func main() {
-
+	options := options{
+		LocalPort:     flag.Int("local-port", 8443, "local port to listen on for REDIRECTed traffic"),
+		UpstreamProxy: flag.String("upstream-proxy", "localhost:3128", "upstream proxy to CONNECT to"),
+		VersionFlag:   flag.Bool("version", false, "show version information"),
+		DialTimeout:   flag.Duration("dial-timeout", 3*time.Minute, "timeout for connections to the proxy"),
+		SniffTimeout: flag.Duration("sniff-timeout", -1,
+			fmt.Sprintf("maximum acceptable delay for hostname sniffing (<0 -> disable, =0 -> %v)", hostname.SniffDefaultTimeout)),
+		SniffMaxBytes: flag.Int64("sniff-max-bytes", hostname.SniffDefaultMaxData,
+			"maximum number of bytes used for hostname sniffing (<= 0 -> use default)"),
+	}
 	flag.Parse()
 
 	fmt.Println("HandyProxy", version)
-	if *versionFlag {
+	if *options.VersionFlag {
 		return
 	}
 
-	if *sniffMaxBytes > ((1 << 63) - 1) {
-		log.Fatalln("-sniff-max-bytes value is too big")
-	}
+	hostNameSnifferFactory := newHostNameSnifferFactoryFromOptions(&options)
 
-	ln, err := net.Listen("tcp4", fmt.Sprintf(":%d", *localPort))
+	ln, err := net.Listen("tcp4", fmt.Sprintf(":%d", *options.LocalPort))
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Printf("Listening for TCP traffic on port %d and sending it to %s\n", *localPort, *upstreamProxy)
+	log.Printf("Listening for TCP traffic on port %d and sending it to %s\n", *options.LocalPort, *options.UpstreamProxy)
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-		go handleConnection(conn.(*net.TCPConn))
+		go handleConnection(&connectionContext{
+			Opts:            &options,
+			C:               conn.(*net.TCPConn),
+			HostNameSniffer: hostNameSnifferFactory.NewHostNameSniffer(),
+		})
 	}
 }
 
-func setupConnectUpstream(origin string) (c *net.TCPConn, err error) {
+func setupConnectUpstream(ctx *connectionContext, origin string) (c *net.TCPConn, err error) {
 	var pipe *net.TCPConn
 
 	defer func() {
 		if err != nil && pipe != nil {
-			pipe.Close()
+			_ = pipe.Close()
 		}
 	}()
 
-	pipe0, err := net.DialTimeout("tcp4", *upstreamProxy, *dialTimeout)
+	pipe0, err := net.DialTimeout("tcp4", *ctx.Opts.UpstreamProxy, *ctx.Opts.DialTimeout)
 	if err != nil {
 		return
 	}
@@ -84,61 +138,50 @@ func setupConnectUpstream(origin string) (c *net.TCPConn, err error) {
 	}
 	if connectRsp.StatusCode/100 != 2 {
 		err = fmt.Errorf("CONNECT to proxy %s for origin %s returned status code %d instead of 2xx",
-			*upstreamProxy, origin, connectRsp.StatusCode)
+			*ctx.Opts.UpstreamProxy, origin, connectRsp.StatusCode)
 		return
 	}
 
 	return pipe, nil
 }
 
-func handleConnection(c *net.TCPConn) {
-	defer c.Close()
+func handleConnection(ctx *connectionContext) {
+	defer ctx.C.Close()
 
-	origin, err := getOriginalDestination(c)
+	origin, err := getOriginalDestination(ctx.C)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	var hostSniffer *hostname.HostNameSniffer
-	if *sniffTimeOut > 0 {
-		hostSniffer = hostname.NewSniffer(
-			hostname.WithMaxData(int64(*sniffMaxBytes)),
-			hostname.WithTimeout(*sniffTimeOut),
-			hostname.WithSnifferStrategy(hostname.HTTPSniffer()),
-			hostname.WithSnifferStrategy(hostname.TLSSniffer()),
-		)
-		hostName, err := hostSniffer.SniffHostName(c)
-		if err == nil {
-			origin = hostName
-			log.Printf("Extracted hostname for client connection %s: %s", c.RemoteAddr().String(), hostName)
-		} else {
-			log.Printf("Hostname extraction failed for client connection %s: %s", c.RemoteAddr().String(), err)
-		}
+	hostName, err := ctx.HostNameSniffer.SniffHostName(ctx.C)
+	if err == nil {
+		origin = hostName
+		log.Printf("Extracted hostname for client connection %s: %s", ctx.C.RemoteAddr().String(), hostName)
+	} else {
+		log.Printf("Hostname extraction failed for client connection %s: %s", ctx.C.RemoteAddr().String(), err)
 	}
 
-	pipe, err := setupConnectUpstream(origin)
+	pipe, err := setupConnectUpstream(ctx, origin)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 	defer pipe.Close()
 
-	if hostSniffer != nil {
-		_, err = hostSniffer.GetBufferedData().WriteTo(pipe)
-		if err != nil {
-			return
-		}
+	_, err = ctx.HostNameSniffer.GetBufferedData().WriteTo(pipe)
+	if err != nil {
+		return
 	}
-	handleTunnel(c, pipe)
+	handleTunnel(ctx.C, pipe)
 }
 
 func handleTunnel(in, out *net.TCPConn) {
 	var wg sync.WaitGroup
 	copier := func(dst, src *net.TCPConn) {
 		defer wg.Done()
-		io.Copy(dst, src)
-		dst.CloseWrite()
+		_, _ = io.Copy(dst, src)
+		_ = dst.CloseWrite()
 	}
 	wg.Add(2)
 	go copier(in, out)
