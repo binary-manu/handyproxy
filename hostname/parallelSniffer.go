@@ -29,7 +29,7 @@ func (sniffer *parallelSniffer) SniffHostName(c *net.TCPConn) (rHostName string,
 		err := c.SetReadDeadline(time.Time{})
 		if err != nil {
 			rHostName = ""
-			rError = fmt.Errorf("failed to disable read deadline on TCP conn: %w", err)
+			rError = WrapFatal(fmt.Errorf("failed to disable read deadline on TCP conn: %w", err))
 		}
 	}()
 	// Ensure bytes used for detection are buffered so that they can then be sent

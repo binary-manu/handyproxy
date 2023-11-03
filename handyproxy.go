@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -160,6 +161,9 @@ func handleConnection(ctx *connectionContext) {
 		log.Printf("Extracted hostname for client connection %s: %s", ctx.C.RemoteAddr().String(), hostName)
 	} else {
 		log.Printf("Hostname extraction failed for client connection %s: %s", ctx.C.RemoteAddr().String(), err)
+		if errors.As(err, new(*hostname.FatalError)) {
+			return
+		}
 	}
 
 	pipe, err := setupConnectUpstream(ctx, origin)
