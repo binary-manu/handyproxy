@@ -130,5 +130,9 @@ func NewParallelSniffer(opts ...ParallelSnifferOption) *Sniffer {
 	for _, opts := range opts {
 		opts(&sniffer)
 	}
+	if len(sniffer.sniffers) <= 0 {
+		panic("parallelSniffer not configured with any SniffStrategy")
+	}
+
 	return &Sniffer{&sniffer}
 }
