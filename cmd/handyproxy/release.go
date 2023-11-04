@@ -31,7 +31,7 @@ func ntohs(s uint16) uint16 {
 	return byteOrder.Uint16([]byte{byte(s >> 8), byte(s)})
 }
 
-func getOriginalDestination(c *net.TCPConn) (origin string, err error) {
+func getOriginalDestination(c *net.TCPConn) (_ string, err error) {
 	file, err := c.File()
 	if err != nil {
 		return
@@ -45,13 +45,13 @@ func getOriginalDestination(c *net.TCPConn) (origin string, err error) {
 	if err != nil {
 		return
 	}
-	origin = (&net.TCPAddr{IP: net.IP(addr.Addr[:]), Port: int(ntohs(addr.Port))}).String()
+	realOrigin := (&net.TCPAddr{IP: net.IP(addr.Addr[:]), Port: int(ntohs(addr.Port))}).String()
 	localAddr := c.LocalAddr().String()
-	if origin == localAddr {
+	if realOrigin == localAddr {
 		err = fmt.Errorf("received non REDIRECTed traffic to %s from %s, discarding", localAddr, c.RemoteAddr().String())
 		return
 	}
-	return
+	return realOrigin, nil
 }
 
 func getsockopt(s uintptr, level uintptr, optname uintptr, optval unsafe.Pointer, optlen *C.socklen_t) (err error) {
