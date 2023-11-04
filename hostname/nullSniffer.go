@@ -3,6 +3,7 @@ package hostname
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net"
 )
 
@@ -12,7 +13,7 @@ func (sniffer *nullSniffer) SniffHostName(c *net.TCPConn) (string, error) {
 	return "", fmt.Errorf("null sniffer always fails")
 }
 
-func (sniffer *nullSniffer) GetBufferedData() *bytes.Buffer {
+func (sniffer *nullSniffer) GetBufferedData() io.WriterTo {
 	return &bytes.Buffer{}
 }
 

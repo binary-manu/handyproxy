@@ -1,7 +1,6 @@
 package hostname
 
 import (
-	"bytes"
 	"io"
 	"net"
 	"strings"
@@ -39,7 +38,7 @@ type Sniffer struct {
 
 type sniffer interface {
 	SniffHostName(c *net.TCPConn) (string, error)
-	GetBufferedData() *bytes.Buffer
+	GetBufferedData() io.WriterTo
 }
 
 type SniffStrategy struct {

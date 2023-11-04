@@ -94,7 +94,7 @@ func (sniffer *parallelSniffer) SniffHostName(c *net.TCPConn) (rHostName string,
 
 }
 
-func (sniffer *parallelSniffer) GetBufferedData() *bytes.Buffer {
+func (sniffer *parallelSniffer) GetBufferedData() io.WriterTo {
 	return &sniffer.bufferedData
 }
 
