@@ -113,8 +113,6 @@ func WithParallelMaxData(max int64) ParallelSnifferOption {
 	return func(sniffer *parallelSniffer) {
 		if max > 0 {
 			sniffer.maxData = max
-		} else {
-			sniffer.maxData = SniffDefaultMaxData
 		}
 	}
 }
@@ -123,8 +121,6 @@ func WithParallelTimeout(timeout time.Duration) ParallelSnifferOption {
 	return func(sniffer *parallelSniffer) {
 		if timeout > 0 {
 			sniffer.timeout = timeout
-		} else {
-			sniffer.timeout = SniffDefaultTimeout
 		}
 	}
 }
