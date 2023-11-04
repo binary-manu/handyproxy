@@ -41,10 +41,14 @@ func (sniffer *parallelSniffer) SniffHostName(c *net.TCPConn) (rHostName string,
 	writersForStrategies := make([]io.Writer, nSniffers)
 	defer func() {
 		for _, r := range readersForStrategies {
-			_ = r.(io.Closer).Close()
+			if r != nil {
+				_ = r.(io.Closer).Close()
+			}
 		}
 		for _, w := range writersForStrategies {
-			_ = w.(io.Closer).Close()
+			if w != nil {
+				_ = w.(io.Closer).Close()
+			}
 		}
 	}()
 	hostNamesFound := make(chan string, nSniffers)
