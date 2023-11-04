@@ -97,6 +97,9 @@ func (sniffer *parallelSniffer) GetBufferedData() *bytes.Buffer {
 type ParallelSnifferOption func(sniffer *parallelSniffer)
 
 func WithParallelSnifferStrategy(aSniffer *SniffStrategy) ParallelSnifferOption {
+	if aSniffer == nil {
+		panic("cannot add nil SniffStrategy to parallelSniffer")
+	}
 	return func(sniffer *parallelSniffer) {
 		sniffer.sniffers = append(sniffer.sniffers, aSniffer)
 	}
