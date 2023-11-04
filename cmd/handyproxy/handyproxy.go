@@ -26,11 +26,11 @@ type options struct {
 	SniffMaxBytes *int64
 }
 
-type HostNameSnifferFactory struct {
-	hostNameSnifferFactory
+type hostNameSnifferFactory struct {
+	hostNameSnifferFactoryInterface
 }
 
-type hostNameSnifferFactory interface {
+type hostNameSnifferFactoryInterface interface {
 	NewHostNameSniffer() *hostname.Sniffer
 }
 
@@ -53,11 +53,11 @@ func (factory *parallelHostNameSnifferFactory) NewHostNameSniffer() *hostname.Sn
 	)
 }
 
-func newHostNameSnifferFactoryFromOptions(opts *options) *HostNameSnifferFactory {
+func newHostNameSnifferFactoryFromOptions(opts *options) *hostNameSnifferFactory {
 	if *opts.SniffTimeout < 0 {
-		return &HostNameSnifferFactory{&nullHostNameSnifferFactory{}}
+		return &hostNameSnifferFactory{&nullHostNameSnifferFactory{}}
 	} else {
-		return &HostNameSnifferFactory{&parallelHostNameSnifferFactory{opts}}
+		return &hostNameSnifferFactory{&parallelHostNameSnifferFactory{opts}}
 	}
 }
 

@@ -33,19 +33,19 @@ func WrapFatal(err error) error {
 }
 
 type Sniffer struct {
-	sniffer
+	snifferInterface
 }
 
-type sniffer interface {
+type snifferInterface interface {
 	SniffHostName(c *net.TCPConn) (string, error)
 	GetBufferedData() io.WriterTo
 }
 
 type SniffStrategy struct {
-	sniffStrategy
+	sniffStrategyInterface
 }
 
-type sniffStrategy interface {
+type sniffStrategyInterface interface {
 	SniffHostName(r io.Reader) (string, error)
 }
 

@@ -54,7 +54,7 @@ func (sniffer *parallelSniffer) SniffHostName(c *net.TCPConn) (rHostName string,
 	hostNamesFound := make(chan string, nSniffers)
 	for i, strategy := range sniffer.sniffers {
 		readersForStrategies[i], writersForStrategies[i] = io.Pipe()
-		go func(i int, strategy sniffStrategy) {
+		go func(i int, strategy sniffStrategyInterface) {
 			name, _ := strategy.SniffHostName(readersForStrategies[i])
 			hostNamesFound <- name
 			// Keep dumping data, otherwise the MultiWriter will stall
