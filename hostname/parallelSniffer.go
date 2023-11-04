@@ -84,7 +84,7 @@ func (sniffer *parallelSniffer) SniffHostName(c *net.TCPConn) (rHostName string,
 				return "", fmt.Errorf("all hostname sniffers failed")
 			}
 		case <-readSync:
-			return "", fmt.Errorf("sniff deadline expired")
+			return "", fmt.Errorf("sniff deadline expired or data limit reached")
 		}
 	}
 
