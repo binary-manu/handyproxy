@@ -16,6 +16,8 @@ func (sniffer *nullSniffer) GetBufferedData() *bytes.Buffer {
 	return &bytes.Buffer{}
 }
 
+var nullSingleton = &Sniffer{&nullSniffer{}}
+
 func NewNullSniffer() *Sniffer {
-	return &Sniffer{&nullSniffer{}}
+	return nullSingleton
 }
