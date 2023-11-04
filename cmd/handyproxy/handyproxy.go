@@ -133,10 +133,18 @@ func setupConnectUpstream(ctx *connectionContext, origin string) (c *net.TCPConn
 		return
 	}
 	defer connectRsp.Body.Close()
-	_, err = io.CopyN(io.Discard, connectRsp.Body, connectRsp.ContentLength)
-	if err != nil {
-		return
-	}
+
+	// From RFC9110:
+	// Any 2xx (Successful) response indicates that the sender (and all inbound
+	// proxies) will switch to tunnel mode immediately after the response header
+	// section; data received after that header section is from the server identified
+	// by the request target. Any response other than a successful response indicates
+	// that the tunnel has not yet been formed.
+
+	// So, if we get a 2xx and have read all headers, rest of the data must come
+	// from the origin, so don't try to read the body. Otherwise, we have an
+	// error, and that may have a body, but we do not care about it.
+
 	if connectRsp.StatusCode/100 != 2 {
 		err = fmt.Errorf("CONNECT to proxy %s for origin %s returned status code %d instead of 2xx",
 			*ctx.Opts.UpstreamProxy, origin, connectRsp.StatusCode)
