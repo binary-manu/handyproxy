@@ -34,6 +34,8 @@ func sniffHostNameFromTLSSNI(r io.Reader) (string, error) {
 	}
 }
 
+var tlsSingleton = &SniffStrategy{snifferStrategyFunction(sniffHostNameFromTLSSNI)}
+
 func NewTLSSnifferStrategy() *SniffStrategy {
-	return &SniffStrategy{snifferStrategyFunction(sniffHostNameFromTLSSNI)}
+	return tlsSingleton
 }
