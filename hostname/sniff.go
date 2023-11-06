@@ -36,17 +36,29 @@ type Sniffer struct {
 	snifferInterface
 }
 
-type snifferInterface interface {
+type SnifferInterface interface {
 	SniffHostName(c *net.TCPConn) (string, error)
 	GetBufferedData() io.WriterTo
+}
+
+type snifferInterface = SnifferInterface
+
+func NewSnifferFromInterface(snifferInterface SnifferInterface) *Sniffer {
+	return &Sniffer{snifferInterface}
 }
 
 type SniffStrategy struct {
 	sniffStrategyInterface
 }
 
-type sniffStrategyInterface interface {
+type SniffStrategyInterface interface {
 	SniffHostName(r io.Reader) (string, error)
+}
+
+type sniffStrategyInterface = SniffStrategyInterface
+
+func NewSniffStrategyFromInterface(strategyInterface SniffStrategyInterface) *SniffStrategy {
+	return &SniffStrategy{strategyInterface}
 }
 
 type snifferStrategyFunction func(r io.Reader) (string, error)

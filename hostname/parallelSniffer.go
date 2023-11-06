@@ -137,5 +137,5 @@ func NewParallelSniffer(opts ...ParallelSnifferOption) *Sniffer {
 		panic("parallelSniffer not configured with any SniffStrategy")
 	}
 
-	return &Sniffer{&sniffer}
+	return NewSnifferFromInterface(&sniffer)
 }

@@ -17,7 +17,7 @@ func (sniffer *nullSniffer) GetBufferedData() io.WriterTo {
 	return &bytes.Buffer{}
 }
 
-var nullSingleton = &Sniffer{&nullSniffer{}}
+var nullSingleton = NewSnifferFromInterface(&nullSniffer{})
 
 func NewNullSniffer() *Sniffer {
 	return nullSingleton
