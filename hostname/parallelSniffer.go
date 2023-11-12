@@ -15,7 +15,7 @@ type parallelSniffer struct {
 	bufferedData bytes.Buffer
 }
 
-func (sniffer *parallelSniffer) SniffHostName(c *net.TCPConn) (rHostName string, rError error) {
+func (sniffer *parallelSniffer) SniffHostName(c net.Conn) (rHostName string, rError error) {
 	if sniffer.bufferedData.Len() > 0 {
 		panic("parallelSniffer instances cannot be reused")
 	}

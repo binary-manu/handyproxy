@@ -37,7 +37,7 @@ type Sniffer struct {
 }
 
 type SnifferInterface interface {
-	SniffHostName(c *net.TCPConn) (string, error)
+	SniffHostName(c net.Conn) (string, error)
 	GetBufferedData() io.WriterTo
 }
 

@@ -9,7 +9,7 @@ import (
 
 type nullSniffer struct{}
 
-func (sniffer *nullSniffer) SniffHostName(*net.TCPConn) (string, error) {
+func (sniffer *nullSniffer) SniffHostName(net.Conn) (string, error) {
 	return "", fmt.Errorf("null sniffer always fails")
 }
 
