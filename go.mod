@@ -3,6 +3,7 @@ module github.com/binary-manu/handyproxy
 go 1.20
 
 require (
+	github.com/akutz/memconn v0.1.0
 	github.com/go-gost/tls-dissector v0.0.1
 	github.com/stretchr/testify v1.8.4
 )
