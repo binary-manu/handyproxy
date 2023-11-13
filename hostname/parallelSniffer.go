@@ -2,11 +2,15 @@ package hostname
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"time"
 )
+
+// This error is used in tests to check that a timeout was actually reached
+var errTimeoutOrDataLimitExceeded = errors.New("hostname sniff deadline expired or data limit reached")
 
 type parallelSniffer struct {
 	sniffers     []*SniffStrategy
@@ -88,7 +92,7 @@ func (sniffer *parallelSniffer) SniffHostName(c net.Conn) (rHostName string, rEr
 				return "", fmt.Errorf("all hostname sniffers failed")
 			}
 		case <-readSync:
-			return "", fmt.Errorf("sniff deadline expired or data limit reached")
+			return "", errTimeoutOrDataLimitExceeded
 		}
 	}
 
