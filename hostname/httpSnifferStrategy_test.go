@@ -9,14 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type httpTestData struct {
-	Description   string
-	Request       string
-	HostnameCheck func(require.TestingT, any, ...any)
-	ErrorCheck    func(require.TestingT, error, ...any)
-}
-
-var httpTestTable = []httpTestData{
+var httpTestTable = []*testData{
 	// Bad
 	{
 		"Empty request",
@@ -135,9 +128,9 @@ func TestHTTPSniffStrategy(t *testing.T) {
 	for _, test := range httpTestTable {
 		t.Run(test.Description, func(t *testing.T) {
 			strategy := NewHTTPSnifferStrategy()
-			hostName, err := strategy.SniffHostName(strings.NewReader(test.Request))
-			test.HostnameCheck(t, hostName)
+			hostName, err := strategy.SniffHostName(test.ReaderForRequest())
 			test.ErrorCheck(t, err)
+			test.HostnameCheck(t, hostName)
 		})
 	}
 }

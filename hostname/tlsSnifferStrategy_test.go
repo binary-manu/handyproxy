@@ -11,13 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type tlsTestData struct {
-	Description   string
-	Request       string
-	HostnameCheck func(require.TestingT, any, ...any)
-	ErrorCheck    func(require.TestingT, error, ...any)
-}
-
 var tlsTestCompressionMethods []dissector.CompressionMethod = []dissector.CompressionMethod{0}
 
 var tlsTestCipherSuites []dissector.CipherSuite = func() []dissector.CipherSuite {
@@ -66,24 +59,24 @@ func makeHexStringFromClientHello(hello *dissector.ClientHelloHandshake, numReco
 	return result.String()
 }
 
-var tlsTestTable = []tlsTestData{
+var tlsTestTable = []*testDataHexRequest{
 	// Bad
-	{
+	{&testData{
 		"Empty request",
 		"",
 		require.Empty, require.Error,
-	},
-	{
+	}},
+	{&testData{
 		"Short 1-byte ClientHello",
 		"00",
 		require.Empty, require.Error,
-	},
-	{
+	}},
+	{&testData{
 		"Short 16-byte ClientHello",
 		"00000000000000000000000000000000",
 		require.Empty, require.Error,
-	},
-	{
+	}},
+	{&testData{
 		"Real ClientHello, but without SNI, 1 record",
 		makeHexStringFromClientHello(
 			&dissector.ClientHelloHandshake{
@@ -94,8 +87,8 @@ var tlsTestTable = []tlsTestData{
 			1,
 		),
 		require.Empty, require.Error,
-	},
-	{
+	}},
+	{&testData{
 		"Real ClientHello, but without SNI, ridicolously high number of records",
 		makeHexStringFromClientHello(
 			&dissector.ClientHelloHandshake{
@@ -106,8 +99,8 @@ var tlsTestTable = []tlsTestData{
 			1<<32-1,
 		),
 		require.Empty, require.Error,
-	},
-	{
+	}},
+	{&testData{
 		"Real ClientHello, with SNI, 1 record",
 		makeHexStringFromClientHello(
 			&dissector.ClientHelloHandshake{
@@ -121,8 +114,8 @@ var tlsTestTable = []tlsTestData{
 			1,
 		),
 		withExpected("www.tlsname.test.com"), require.NoError,
-	},
-	{
+	}},
+	{&testData{
 		"Real ClientHello, with SNI, 2 records",
 		makeHexStringFromClientHello(
 			&dissector.ClientHelloHandshake{
@@ -136,8 +129,8 @@ var tlsTestTable = []tlsTestData{
 			2,
 		),
 		withExpected("www.tlsname.test.com"), require.NoError,
-	},
-	{
+	}},
+	{&testData{
 		"Real ClientHello, with SNI, 16 records",
 		makeHexStringFromClientHello(
 			&dissector.ClientHelloHandshake{
@@ -151,8 +144,8 @@ var tlsTestTable = []tlsTestData{
 			16,
 		),
 		withExpected("www.tlsname.test.com"), require.NoError,
-	},
-	{
+	}},
+	{&testData{
 		"Real ClientHello, with SNI, ridicolously high number of records",
 		makeHexStringFromClientHello(
 			&dissector.ClientHelloHandshake{
@@ -166,17 +159,16 @@ var tlsTestTable = []tlsTestData{
 			1<<32-1,
 		),
 		withExpected("www.tlsname.test.com"), require.NoError,
-	},
+	}},
 }
 
 func TestTLSSniffStrategy(t *testing.T) {
 	for _, test := range tlsTestTable {
 		t.Run(test.Description, func(t *testing.T) {
 			strategy := NewTLSSnifferStrategy()
-			byteReader := hex.NewDecoder(strings.NewReader(test.Request))
-			hostName, err := strategy.SniffHostName(byteReader)
-			test.HostnameCheck(t, hostName)
+			hostName, err := strategy.SniffHostName(test.ReaderForRequest())
 			test.ErrorCheck(t, err)
+			test.HostnameCheck(t, hostName)
 		})
 	}
 }
