@@ -15,11 +15,19 @@ func streamRequestViaConn(producer io.Reader, consumer func(net.Conn)) {
 	pr, pw := memconn.Pipe()
 	defer pr.Close()
 	defer pw.Close()
+	errCh := make(chan error, 1)
 	go func() {
-		must(io.Copy(pw, producer))
+		_, err := io.Copy(pw, producer)
+		if err != nil {
+			errCh <- err
+		}
 	}()
-	// The returned error and hostname must match the scenario
 	consumer(pr)
+	select {
+	case err := <-errCh:
+		panic(err)
+	default:
+	}
 }
 
 func tableTestHelper[TD testDataInterface](t *testing.T, snifferFactory func() *Sniffer, testData []TD) {
