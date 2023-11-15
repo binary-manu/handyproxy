@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/akutz/memconn"
 	"github.com/stretchr/testify/require"
@@ -87,6 +88,30 @@ func TestParallelSnifferWithASuccessfulStub(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestParallelSnifferWithASuccessfulAndAFailingStub(t *testing.T) {
+	expectedHost := "www.example.com"
+	sniffStrategyStubOK := func(c io.Reader) (string, error) {
+		return expectedHost, nil
+	}
+	sniffStrategyStubFail := func(c io.Reader) (string, error) {
+		return "", fmt.Errorf("stub strategy always fails")
+	}
+
+	stubOK := NewSniffStrategyFromInterface(snifferStrategyFunction(sniffStrategyStubOK))
+	stubKO := NewSniffStrategyFromInterface(snifferStrategyFunction(sniffStrategyStubFail))
+	sniffer := NewParallelSniffer(
+		WithParallelSnifferStrategy(stubOK),
+		WithParallelSnifferStrategy(stubKO),
+	)
+	var hostname string
+	var err error
+	streamRequestViaConn(&bytes.Buffer{}, func(c net.Conn) {
+		hostname, err = sniffer.SniffHostName(c)
+	})
+	require.Equal(t, expectedHost, hostname)
+	require.NoError(t, err)
+}
+
 func TestParallelSnifferWithDeadlineExceeded(t *testing.T) {
 	sniffStrategyStub := func(c io.Reader) (string, error) {
 		// We should not get past this copy unless the connection
@@ -104,6 +129,37 @@ func TestParallelSnifferWithDeadlineExceeded(t *testing.T) {
 	})
 	require.Empty(t, hostname)
 	require.ErrorIs(t, errTimeoutOrDataLimitExceeded, err)
+}
+
+func TestParallelSnifferWithMaxDataExceeded(t *testing.T) {
+	sniffStrategyStub := func(c io.Reader) (string, error) {
+		io.Copy(io.Discard, c)
+		return "", fmt.Errorf("stub strategy failed")
+	}
+
+	const testMaxData = 16
+	const testMaxTime = time.Minute
+	stub := NewSniffStrategyFromInterface(snifferStrategyFunction(sniffStrategyStub))
+	sniffer := NewParallelSniffer(
+		WithParallelSnifferStrategy(stub),
+		// Give the test some time to complete. Under extreme load, the timeout
+		// could be triggered before the data limit is reached. There is no way
+		// around this unless the timeout can be se to infinity, which is
+		// currently not the case.
+		WithParallelTimeout(testMaxTime),
+		WithParallelMaxData(testMaxData),
+	)
+	var hostname string
+	var err error
+
+	before := time.Now()
+	streamRequestViaConn(bytes.NewReader(make([]byte, testMaxData)), func(c net.Conn) {
+		hostname, err = sniffer.SniffHostName(c)
+	})
+	after := time.Now()
+	require.Empty(t, hostname)
+	require.ErrorIs(t, errTimeoutOrDataLimitExceeded, err)
+	require.Less(t, after.Sub(before), testMaxTime)
 }
 
 func TestParallelSnifferWithHTTPStrategyOnly(t *testing.T) {
