@@ -27,15 +27,6 @@ func (sniffer *parallelSniffer) SniffHostName(c net.Conn) (rHostName string, rEr
 	nSniffers := len(sniffer.sniffers)
 
 	var reader io.Reader = c
-	readSync := make(chan struct{})
-	defer func() {
-		<-readSync
-		err := c.SetReadDeadline(time.Time{})
-		if err != nil {
-			rHostName = ""
-			rError = WrapFatal(fmt.Errorf("failed to disable read deadline on TCP conn: %w", err))
-		}
-	}()
 	// Ensure bytes used for detection are buffered so that they can then be sent
 	// to the destination
 	reader = io.TeeReader(reader, &sniffer.bufferedData)
@@ -67,13 +58,39 @@ func (sniffer *parallelSniffer) SniffHostName(c net.Conn) (rHostName string, rEr
 	}
 	forkData := io.MultiWriter(writersForStrategies...)
 
+	readSync := make(chan error, 1)
+
+	defer func() {
+		err := <-readSync
+		if errors.As(err, new(*FatalError)) {
+			rHostName = ""
+			rError = err
+		}
+		err = c.SetReadDeadline(time.Time{})
+		if err != nil {
+			rHostName = ""
+			rError = WrapFatal(fmt.Errorf("failed to disable read deadline on TCP conn: %w", err))
+		}
+	}()
+
 	go func() {
 		defer close(readSync)
 		err := c.SetReadDeadline(time.Now().Add(sniffer.timeout))
 		if err != nil {
 			return
 		}
-		_, _ = io.CopyN(forkData, reader, sniffer.maxData)
+		_, err = io.CopyN(forkData, reader, sniffer.maxData)
+
+		// Unless we are sure the deadline was exceeded, any error may have
+		// caused a loss of data from the socket to the buffer, so it is no
+		// longer possible to rebuild the original data stream.  In this case we
+		// return a fatal error. Else an errTimeoutOrDataLimitExceeded, which
+		// also includes the case of the socket being closed.
+		if netErr := new(*net.OpError); err == nil || errors.As(err, netErr) && (*netErr).Timeout() {
+			readSync <- errTimeoutOrDataLimitExceeded
+		} else {
+			readSync <- WrapFatal(err)
+		}
 	}()
 
 	for {
@@ -91,8 +108,8 @@ func (sniffer *parallelSniffer) SniffHostName(c net.Conn) (rHostName string, rEr
 				_ = c.SetReadDeadline(time.Now())
 				return "", fmt.Errorf("all hostname sniffers failed")
 			}
-		case <-readSync:
-			return "", errTimeoutOrDataLimitExceeded
+		case err := <-readSync:
+			return "", err
 		}
 	}
 
