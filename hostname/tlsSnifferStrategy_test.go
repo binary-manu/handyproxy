@@ -11,13 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Null compression method
 var tlsTestCompressionMethods []dissector.CompressionMethod = []dissector.CompressionMethod{0}
 
 var tlsTestCipherSuites []dissector.CipherSuite = func() []dissector.CipherSuite {
 	realSuites := tls.CipherSuites()
 	testSuites := make([]dissector.CipherSuite, len(realSuites))
-	for _, suite := range realSuites {
-		testSuites = append(testSuites, dissector.CipherSuite(suite.ID))
+	for i, suite := range realSuites {
+		testSuites[i] = dissector.CipherSuite(suite.ID)
 	}
 	return testSuites
 }()
@@ -35,6 +36,7 @@ func makeHexStringFromClientHello(hello *dissector.ClientHelloHandshake, numReco
 	must(hello.WriteTo(&helloBytes))
 
 	// Now break it into numRecords records
+	// It's OK if the remainder gets its own packet
 	var result strings.Builder
 	msgSlice := helloBytes.Bytes()
 	bytesPerRecord := len(msgSlice) / numRecords
@@ -53,7 +55,7 @@ func makeHexStringFromClientHello(hello *dissector.ClientHelloHandshake, numReco
 		}
 		var recBytes bytes.Buffer
 		must(rec.WriteTo(&recBytes))
-		result.WriteString(hex.EncodeToString(recBytes.Bytes()))
+		must(result.WriteString(hex.EncodeToString(recBytes.Bytes())))
 		msgSlice = msgSlice[recSize:]
 	}
 	return result.String()

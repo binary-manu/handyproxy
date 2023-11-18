@@ -2,12 +2,24 @@ package hostname
 
 import (
 	"bytes"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func makeHTTPRequest(method, url, body string) string {
+	var reader io.Reader
+	if body != "" {
+		reader = strings.NewReader(body)
+	}
+	req := must(http.NewRequest(method, url, reader))
+	var reqBytes bytes.Buffer
+	must(struct{}{}, req.Write(&reqBytes))
+	return reqBytes.String()
+}
 
 var httpTestTable = []*testData{
 	// Bad
@@ -48,7 +60,7 @@ var httpTestTable = []*testData{
 	},
 	{
 		"POST request, no Host header, empty body",
-		"POST / HTTP/1.1\r\n\r\nDATA",
+		"POST / HTTP/1.1\r\n\r\n",
 		require.Empty, require.Error,
 	},
 	{
@@ -57,8 +69,13 @@ var httpTestTable = []*testData{
 		require.Empty, require.Error,
 	},
 	{
-		"POST request, no Host header, truncated body",
+		"POST request, no Host header, body longr than expected",
 		"POST / HTTP/1.1\r\nContent-Length: 2\r\n\r\nDATA",
+		require.Empty, require.Error,
+	},
+	{
+		"POST request, no Host header, truncated body",
+		"POST / HTTP/1.1\r\nContent-Length: 8\r\n\r\nDATA",
 		require.Empty, require.Error,
 	},
 	// Good
@@ -94,32 +111,17 @@ var httpTestTable = []*testData{
 	},
 	{
 		"Real GET request from net/http",
-		func() string {
-			req, _ := http.NewRequest("GET", "http://www.foo.bar:8080/my/page.htm", nil)
-			var reqBytes bytes.Buffer
-			req.Write(&reqBytes)
-			return reqBytes.String()
-		}(),
+		makeHTTPRequest("GET", "http://www.foo.bar:8080/my/page.htm", ""),
 		withExpected("www.foo.bar:8080"), require.NoError,
 	},
 	{
 		"Real POST request from net/http",
-		func() string {
-			req, _ := http.NewRequest("POST", "http://www.foo.bar:8080/my/page.htm", strings.NewReader("Sample payload"))
-			var reqBytes bytes.Buffer
-			req.Write(&reqBytes)
-			return reqBytes.String()
-		}(),
+		makeHTTPRequest("POST", "http://www.foo.bar:8080/my/page.htm", "Sample payload"),
 		withExpected("www.foo.bar:8080"), require.NoError,
 	},
 	{
 		"Real PUT request from net/http",
-		func() string {
-			req, _ := http.NewRequest("PUT", "http://www.foo.bar:8080/my/page.htm", strings.NewReader("Sample payload"))
-			var reqBytes bytes.Buffer
-			req.Write(&reqBytes)
-			return reqBytes.String()
-		}(),
+		makeHTTPRequest("PUT", "http://www.foo.bar:8080/my/page.htm", "Sample payload"),
 		withExpected("www.foo.bar:8080"), require.NoError,
 	},
 }

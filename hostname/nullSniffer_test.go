@@ -14,6 +14,6 @@ func TestNullSniffer(t *testing.T) {
 	require.Error(t, err)
 	var bufferedData bytes.Buffer
 	require.NotNil(t, sniffer.GetBufferedData())
-	sniffer.GetBufferedData().WriteTo(&bufferedData)
+	must(sniffer.GetBufferedData().WriteTo(&bufferedData))
 	require.Equal(t, 0, bufferedData.Len())
 }

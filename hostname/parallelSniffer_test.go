@@ -12,23 +12,39 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func streamRequestViaConn(producer io.Reader, consumer func(net.Conn)) {
+// Given a reader, make its contents available as a net.Conn using an in-memory
+// implementation. The copy from the reader to the connection must not fail.
+func streamRequestViaConn(producer io.Reader, consumer func(net.Conn)) *bytes.Buffer {
 	pr, pw := memconn.Pipe()
 	defer pr.Close()
 	defer pw.Close()
-	errCh := make(chan error, 1)
+	var restOfReq bytes.Buffer
+	consumerDone := make(chan struct{}, 1)
 	go func() {
-		_, err := io.Copy(pw, producer)
-		if err != nil {
-			errCh <- err
-		}
+		must(io.Copy(pw, producer))
+		<-consumerDone
+		pw.Close()
 	}()
 	consumer(pr)
-	select {
-	case err := <-errCh:
-		panic(err)
-	default:
+	consumerDone <- struct{}{}
+	must(io.Copy(&restOfReq, pr))
+	return &restOfReq
+}
+
+func checkRebuiltRequest(t *testing.T, original io.Reader, sniffer *Sniffer, restOfRequest *bytes.Buffer) {
+	zeroLenMeansNil := func(s []byte) []byte {
+		if len(s) == 0 {
+			return nil
+		}
+		return s
 	}
+
+	var reqBytes bytes.Buffer
+	must(io.Copy(&reqBytes, original))
+	var reconstructedReq bytes.Buffer
+	must(sniffer.GetBufferedData().WriteTo(&reconstructedReq))
+	must(io.Copy(&reconstructedReq, restOfRequest))
+	require.Equal(t, zeroLenMeansNil(reqBytes.Bytes()), zeroLenMeansNil(reconstructedReq.Bytes()))
 }
 
 func tableTestHelper[TD testDataInterface](t *testing.T, snifferFactory func() *Sniffer, testData []TD) {
@@ -38,19 +54,12 @@ func tableTestHelper[TD testDataInterface](t *testing.T, snifferFactory func() *
 			reqReader := scenario.ReaderForRequest()
 			var hostname string
 			var err error
-			streamRequestViaConn(reqReader, func(c net.Conn) {
+			restOfRequest := streamRequestViaConn(reqReader, func(c net.Conn) {
 				hostname, err = sniffer.SniffHostName(c)
 			})
 			scenario.ErrorCheck(t, err)
 			scenario.HostnameCheck(t, hostname)
-			// Ensure that the unread reueast bytes, plus the buffered portion returned by
-			// the sniffer match the original request
-			var reqBytes bytes.Buffer
-			must(io.Copy(&reqBytes, scenario.ReaderForRequest()))
-			var reconstructedReq bytes.Buffer
-			must(sniffer.GetBufferedData().WriteTo(&reconstructedReq))
-			must(io.Copy(&reconstructedReq, reqReader))
-			require.Equal(t, reqBytes.Bytes(), reconstructedReq.Bytes())
+			checkRebuiltRequest(t, scenario.ReaderForRequest(), sniffer, restOfRequest)
 		})
 	}
 }
@@ -139,6 +148,7 @@ func TestParallelSnifferWithMaxDataExceeded(t *testing.T) {
 
 	const testMaxData = 16
 	const testMaxTime = time.Minute
+	testBytes := make([]byte, testMaxData)
 	stub := NewSniffStrategyFromInterface(snifferStrategyFunction(sniffStrategyStub))
 	sniffer := NewParallelSniffer(
 		WithParallelSnifferStrategy(stub),
@@ -153,13 +163,14 @@ func TestParallelSnifferWithMaxDataExceeded(t *testing.T) {
 	var err error
 
 	before := time.Now()
-	streamRequestViaConn(bytes.NewReader(make([]byte, testMaxData)), func(c net.Conn) {
+	restOfRequest := streamRequestViaConn(bytes.NewReader(testBytes), func(c net.Conn) {
 		hostname, err = sniffer.SniffHostName(c)
 	})
 	after := time.Now()
+	require.Less(t, after.Sub(before), testMaxTime)
 	require.Empty(t, hostname)
 	require.ErrorIs(t, errTimeoutOrDataLimitExceeded, err)
-	require.Less(t, after.Sub(before), testMaxTime)
+	checkRebuiltRequest(t, bytes.NewReader(testBytes), sniffer, restOfRequest)
 }
 
 func TestParallelSnifferWithHTTPStrategyOnly(t *testing.T) {
