@@ -12,6 +12,8 @@ changes. For example, versions `0.2.x` are not compatible with `0.1.x`.
 
 ## [Unreleased]
 
+## [0.2.1] - 2023-11-19
+
 ### Added
 
 * Add hostname sniffing for TLS and HTTP connections.
