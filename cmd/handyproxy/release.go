@@ -32,16 +32,16 @@ func ntohs(s uint16) uint16 {
 }
 
 func getOriginalDestination(c *net.TCPConn) (_ string, err error) {
-	file, err := c.File()
+	raw, err := c.SyscallConn()
 	if err != nil {
 		return
 	}
-	defer file.Close()
-	fd := file.Fd()
 
 	var addr syscall.RawSockaddrInet4
-	addrLen := C.socklen_t(unsafe.Sizeof(addr))
-	err = getsockopt(fd, syscall.SOL_IP, soOriginalDst, unsafe.Pointer(&addr), &addrLen)
+	raw.Control(func(fd uintptr) {
+		addrLen := C.socklen_t(unsafe.Sizeof(addr))
+		err = getsockopt(fd, syscall.SOL_IP, soOriginalDst, unsafe.Pointer(&addr), &addrLen)
+	})
 	if err != nil {
 		return
 	}
