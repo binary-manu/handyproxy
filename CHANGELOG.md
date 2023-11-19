@@ -12,6 +12,17 @@ changes. For example, versions `0.2.x` are not compatible with `0.1.x`.
 
 ## [Unreleased]
 
+### Added
+
+* Add hostname sniffing for TLS and HTTP connections.
+* The `debug` build tag can be used to create a debug version that depends
+* neither on Linux nor on REDIRECT rules; instead it just uses a configurable
+* IP and port as the traffic target. Useful for tests and debug.
+
+### Changed
+
+* Bump Go to 1.20.
+
 ## [0.2.0] - 2021-08-23
 
 ### Added
