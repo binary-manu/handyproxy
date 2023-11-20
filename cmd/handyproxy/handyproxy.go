@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -165,11 +166,18 @@ func handleConnection(ctx *connectionContext) {
 
 	hostName, err := ctx.HostNameSniffer.SniffHostName(ctx.C)
 	if err == nil {
+		// There must always be a port in the destination of a CONNECT. If the returned name
+		// does not contain one, append the port from the original destination.
+		if !strings.ContainsRune(hostName, ':') {
+			parts := strings.Split(origin, ":")
+			hostName = fmt.Sprintf("%s:%s", hostName, parts[1])
+		}
 		origin = hostName
 		log.Printf("Extracted hostname for client connection %s: %s", ctx.C.RemoteAddr().String(), hostName)
 	} else {
 		log.Printf("Hostname extraction failed for client connection %s: %s", ctx.C.RemoteAddr().String(), err)
 		if errors.As(err, new(*hostname.FatalError)) {
+			log.Printf("fatal hostname sniffing error, aborting connection %s: %s", ctx.C.RemoteAddr().String(), err)
 			return
 		}
 	}
