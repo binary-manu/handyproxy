@@ -7,13 +7,22 @@ jobs:
     name: release linux/amd64
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - id: version
-      name: Get version
-      run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
-    - uses: wangyoucao577/go-release-action@v1.19
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        goos: linux
-        goarch: amd64
-        ldflags: -X main.version=${{ steps.version.outputs.VERSION }}
+      - uses: actions/checkout@v2
+
+      - id: version
+        name: Get project version
+        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+  
+      - id: goversion
+        name: Get Go version from .tool-versions
+        run: awk '/^golang[[:blank:]]/ {OFS="="; print "GOVERSION",$2;}' .tool-versions >> "$GITHUB_OUTPUT"
+ 
+      - uses: wangyoucao577/go-release-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          goos: linux
+          goarch: amd64
+          goversion: ${{ steps.goversion.outputs.GOVERSION }}
+          ldflags: -X main.version=${{ steps.version.outputs.VERSION }}
+          project_path: ./cmd/handyproxy
+          pre_command: go test ./...
