@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/binary-manu/handyproxy/hostname"
+	"github.com/binary-manu/handyproxy/internal/hostname"
 )
 
 var version = "master"
