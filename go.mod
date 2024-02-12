@@ -1,6 +1,6 @@
 module github.com/binary-manu/handyproxy
 
-go 1.20
+go 1.22.0
 
 require (
 	github.com/akutz/memconn v0.1.0
