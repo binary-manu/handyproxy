@@ -49,12 +49,12 @@ func (sniffer *parallelSniffer) SniffHostName(c net.Conn) (rHostName string, rEr
 	hostNamesFound := make(chan string, nSniffers)
 	for i, strategy := range sniffer.sniffers {
 		readersForStrategies[i], writersForStrategies[i] = io.Pipe()
-		go func(i int, strategy *SniffStrategy) {
+		go func() {
 			name, _ := strategy.SniffHostName(readersForStrategies[i])
 			hostNamesFound <- name
 			// Keep dumping data, otherwise the MultiWriter will stall
 			_, _ = io.Copy(io.Discard, readersForStrategies[i])
-		}(i, strategy)
+		}()
 	}
 	forkData := io.MultiWriter(writersForStrategies...)
 
