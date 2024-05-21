@@ -12,6 +12,25 @@ changes. For example, versions `0.2.x` are not compatible with `0.1.x`.
 
 ## [Unreleased]
 
+## [0.3.0] - 2024-05-21
+
+### Added
+
+* There is now a devcontainer definition based on the official Go image, Alpine
+  version. This can be used locally to make fully static builds of handyproxy,
+  as the C library in Alpine is musl.
+* There is now a makefile in the project root which takes care of passing
+  appropriate flags to `go build` in order to get static builds. In addition,
+  it supports targets to run tests and create release builds, which don't have
+  any symbols and thus are smaller.
+
+### Changed
+
+* Go was updated to 1.22.0.
+* Minor code tweaks to take advantage of Go 1.22.
+* The `hostname` package is now internal.
+* The CI pipeline now builds stripped executables via the devcontainer.
+
 ## [0.2.1] - 2023-11-19
 
 ### Added
