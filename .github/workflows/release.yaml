@@ -3,26 +3,23 @@ on:
     types: [created]
 
 jobs:
-  release-linux-amd64:
-    name: release linux/amd64
+  build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+
+      - name: Checkout
+        uses: actions/checkout@v3
 
       - id: version
         name: Get project version
         run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
-  
-      - id: goversion
-        name: Get Go version from .tool-versions
-        run: awk '/^golang[[:blank:]]/ {OFS="="; print "GOVERSION",$2;}' .tool-versions >> "$GITHUB_OUTPUT"
- 
-      - uses: wangyoucao577/go-release-action@v1
+
+      - name: Test and build inside dev container
+        uses: devcontainers/ci@v0.3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          goos: linux
-          goarch: amd64
-          goversion: ${{ steps.goversion.outputs.GOVERSION }}
-          ldflags: -X main.version=${{ steps.version.outputs.VERSION }}
-          project_path: ./cmd/handyproxy
-          pre_command: go test ./...
+          runCmd: make test release HANDYPROXY_VERSION=${{ steps.version.outputs.VERSION }}
+
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          file: handyproxy
