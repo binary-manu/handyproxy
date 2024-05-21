@@ -1,0 +1,17 @@
+{
+    "name": "Static Go Build",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "remoteUser": "user",
+    "updateRemoteUserUID": true,
+    "workspaceFolder": "/host",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/host,type=bind",
+    "customizations": {
+        "vscode": {
+            "extensions" : [
+                "golang.go"
+            ]
+        }
+    }
+}
