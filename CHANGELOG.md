@@ -12,6 +12,12 @@ changes. For example, versions `0.2.x` are not compatible with `0.1.x`.
 
 ## [Unreleased]
 
+## [0.3.1] - 2025-02-23
+
+### Changed
+
+* Go was updated to 1.24.0.
+
 ## [0.3.0] - 2024-05-21
 
 ### Added
