@@ -1,3 +1,4 @@
+// Deprecated: use codeberg.org/binary-manu/handyproxy instead
 module github.com/binary-manu/handyproxy
 
 go 1.24.0
