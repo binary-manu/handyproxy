@@ -1,3 +1,5 @@
+⚠️ **Migrated to https://codeberg.org/binary-manu/handyproxy** ⚠️
+
 # HandyProxy
 
 HandyProxy is an extremely simple TCP traffic forwarder, working as a
